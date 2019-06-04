@@ -11,7 +11,7 @@ The main file for this project is called **main.py**. Note that you have to inst
 
 The objective of the GA is to find the best locations for the 8 queens so that no queen is attacking another horizontally, vertically, or diagonally. For this point, this project assumes that no 2 queens are in the same row. As a result, we are sure that no 2 queens will attack each other horizontally. This leaves us to the 2 other types of attacks (vertically and diagonally).
 
-The window bottom part of the window has 3 Button widgets, 3 TextInput widgets, and 1 Label widget. From left to right, the description of the 3 Button widgets is as follows:
+The bottom part of the window has 3 Button widgets, 3 TextInput widgets, and 1 Label widget. From left to right, the description of the 3 Button widgets is as follows:
 
 * The **Initial Population** button creates the initial population of the GA.
 * The **Show Best Solution** button shows the best solution in the last generation the GA stopped at.
