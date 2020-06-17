@@ -120,4 +120,4 @@ Find the book at these links:
 * [Paperspace](https://blog.paperspace.com/author/ahmed)
 * [KDnuggets](https://kdnuggets.com/author/ahmed-gad)
 * [TowardsDataScience](https://towardsdatascience.com/@ahmedfgad)
-* [GitHub](
+* [GitHub](https://github.com/ahmedfgad)
