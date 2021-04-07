@@ -8,7 +8,23 @@ import kivy.graphics
 import numpy
 import pygad
 
+import threading
+
+class PygadThread(threading.Thread):
+    
+    def __init__(self, app, ga_instance):
+        super().__init__()
+        self.ga_instance = ga_instance
+        self.app = app
+
+    def run(self):
+        self.ga_instance.run()
+        self.ga_instance.plot_result()
+
 class BuzzleApp(kivy.app.App):
+
+    old_best_sol_fitness = -1
+    old_best_sol_idx = -1
 
     def start_ga(self, *args):
 
@@ -17,24 +33,11 @@ class BuzzleApp(kivy.app.App):
             self.num_attacks_Label.text = "Press \"Initial Population\""
             return
 
-        ga_instance = pygad.GA(num_generations=500,
-                               num_parents_mating=5,
-                               fitness_func=fitness,
-                               num_genes=8,
-                               initial_population=self.population_1D_vector,
-                               mutation_percent_genes=0.01,
-                               mutation_type="random",
-                               mutation_num_genes=3,
-                               mutation_by_replacement=True,
-                               random_mutation_min_val=0.0,
-                               random_mutation_max_val=8.0,
-                               callback_generation=callback)
-
-        ga_instance.run()
-        ga_instance.plot_result()
+        pygadThread = PygadThread(self, self.ga_instance)
+        pygadThread.start()
 
     def initialize_population(self, *args):
-        self.num_solutions = 10
+        self.num_solutions = 100
         # print("Number of Solutions within the Population : ", self.num_solutions)
 
         self.reset_board_text()
@@ -53,7 +56,21 @@ class BuzzleApp(kivy.app.App):
         # print("Population 2D Matrices : ", self.population)
 
         self.pop_created = 1 # indicates that the initial population is created in order to enable drawing solutions on GUI.
-        self.num_attacks_Label.text = "Initial Population Created."
+        self.num_attacks_Label.text = "Initialized"
+
+        self.ga_instance = pygad.GA(num_generations=200,
+                                    num_parents_mating=50,
+                                    fitness_func=fitness,
+                                    num_genes=8,
+                                    initial_population=self.population_1D_vector,
+                                    mutation_percent_genes=0.01,
+                                    mutation_type="random",
+                                    mutation_num_genes=1,
+                                    mutation_by_replacement=True,
+                                    random_mutation_min_val=0.0,
+                                    random_mutation_max_val=8.0,
+                                    on_generation=on_gen_callback,
+                                    delay_after_gen=0.2)
 
     def vector_to_matrix(self):
         # Converts the 1D vector solutions into a 2D matrix solutions represrnting the board, where 1 means a queen exists. The matrix form of the solutions makes calculating the fitness value much easier.
@@ -79,52 +96,58 @@ class BuzzleApp(kivy.app.App):
                 with self.all_widgets[row_idx, col_idx].canvas.before:
                     kivy.graphics.Color(0, 0, 0, 1)  # green; colors range from 0-1 not 0-255
                     self.rect = kivy.graphics.Rectangle(size=self.all_widgets[row_idx, col_idx].size, pos=self.all_widgets[row_idx, col_idx].pos)
+                    self.all_widgets[row_idx, col_idx].font_size = 20
+                    self.all_widgets[row_idx, col_idx].canvas.ask_update()
+        self.gridLayout.do_layout()
 
     def update_board_UI(self, *args):
         if (not ("pop_created" in vars(self)) or (self.pop_created == 0)):
             print("No Population Created Yet. Create the initial Population by Pressing the \"Initial Population\" Button in Order to Call the initialize_population() Method At First.")
-            self.num_attacks_Label.text = "Press \"Initial Population\""
+            # self.num_attacks_Label.text = "Press \"Initial Population\""
+            return
+
+        _, max_fitness, best_sol_idx = self.ga_instance.best_solution()
+        best_sol = self.population[best_sol_idx, :].copy()
+
+        # self.num_attacks_Label.text = "Max Fitness = " + str(numpy.round(max_fitness, 4))
+        self.num_attacks_Label.text = str(self.ga_instance.generations_completed) + " " + str(numpy.round(max_fitness, 4))
+
+        if abs(BuzzleApp.old_best_sol_fitness - max_fitness) < 0.001:
             return
 
         self.reset_board_text()
-        
-        population_fitness = []
-        for solution in self.population:
-            population_fitness.append(fitness(solution, -1))
-        # print("Fitness Values of the Entire Population : ", population_fitness)
-
-        max_fitness = numpy.max(population_fitness)
-        max_fitness_idx = numpy.where(population_fitness == max_fitness)[0][0]
-        # print("Index of Maximum Fitness : ", max_fitness_index)
-        best_solution = self.population[max_fitness_idx, :]
-
-        self.num_attacks_Label.text = "Max Fitness = " + str(numpy.round(max_fitness, 4))
 
         for row_idx in range(8):
             for col_idx in range(8):
-                if (best_solution[row_idx, col_idx] == 1):
+                if (best_sol[row_idx, col_idx] == 1):
                     self.all_widgets[row_idx, col_idx].text = "[color=22ff22]Queen[/color]"
                     with self.all_widgets[row_idx, col_idx].canvas.before:
                         kivy.graphics.Color(0, 1, 0, 1)  # green; colors range from 0-1 not 0-255
                         self.rect = kivy.graphics.Rectangle(size=self.all_widgets[row_idx, col_idx].size, pos=self.all_widgets[row_idx, col_idx].pos)
+                        self.all_widgets[row_idx, col_idx].font_size = 30
+                        self.all_widgets[row_idx, col_idx].canvas.ask_update()
+        self.gridLayout.do_layout()
+
+        BuzzleApp.old_best_sol_fitness = max_fitness
+        BuzzleApp.old_best_sol_idx = best_sol_idx
 
     def build(self):
-        boxLayout = kivy.uix.boxlayout.BoxLayout(orientation="vertical")
+        self.boxLayout = kivy.uix.boxlayout.BoxLayout(orientation="vertical")
 
-        gridLayout = kivy.uix.gridlayout.GridLayout(rows=8, size_hint_y=9)
-        boxLayout_buttons = kivy.uix.boxlayout.BoxLayout(orientation="horizontal")
+        self.gridLayout = kivy.uix.gridlayout.GridLayout(rows=8, size_hint_y=9)
+        self.boxLayout_buttons = kivy.uix.boxlayout.BoxLayout(orientation="horizontal")
 
-        boxLayout.add_widget(gridLayout)
-        boxLayout.add_widget(boxLayout_buttons)
+        self.boxLayout.add_widget(self.gridLayout)
+        self.boxLayout.add_widget(self.boxLayout_buttons)
 
         # Preparing the 8x8 board.
         self.all_widgets = numpy.zeros(shape=(8,8), dtype="O")
 
         for row_idx in range(self.all_widgets.shape[0]):
             for col_idx in range(self.all_widgets.shape[1]):
-                self.all_widgets[row_idx, col_idx] = kivy.uix.button.Button(text=str(row_idx)+", "+str(col_idx), font_size=25)
+                self.all_widgets[row_idx, col_idx] = kivy.uix.button.Button(text=str(row_idx)+", "+str(col_idx), font_size=20)
                 self.all_widgets[row_idx, col_idx].markup = True
-                gridLayout.add_widget(self.all_widgets[row_idx, col_idx])
+                self.gridLayout.add_widget(self.all_widgets[row_idx, col_idx])
 
         # Preparing buttons inside the child BoxLayout.
         initial_button = kivy.uix.button.Button(text="Initial Population", font_size=15, size_hint_x=2)
@@ -136,14 +159,14 @@ class BuzzleApp(kivy.app.App):
         start_ga_button = kivy.uix.button.Button(text="Start GA", font_size=15, size_hint_x=2)
         start_ga_button.bind(on_press=self.start_ga)
 
-        self.num_attacks_Label = kivy.uix.label.Label(text="Max Fitness", font_size=15, size_hint_x=2)
+        self.num_attacks_Label = kivy.uix.label.Label(text="Max Fitness", font_size=30, size_hint_x=2)
 
-        boxLayout_buttons.add_widget(initial_button)
-        boxLayout_buttons.add_widget(ga_solution_button)
-        boxLayout_buttons.add_widget(start_ga_button)
-        boxLayout_buttons.add_widget(self.num_attacks_Label)
+        self.boxLayout_buttons.add_widget(initial_button)
+        self.boxLayout_buttons.add_widget(ga_solution_button)
+        self.boxLayout_buttons.add_widget(start_ga_button)
+        self.boxLayout_buttons.add_widget(self.num_attacks_Label)
 
-        return boxLayout
+        return self.boxLayout
 
 def fitness(solution_vector, solution_idx):
 
@@ -238,7 +261,7 @@ def attacks_column(ga_solution):
 
     return total_num_attacks
 
-def callback(ga_instance):
+def on_gen_callback(ga_instance):
     global buzzleApp
     print("Generation = {gen}".format(gen=ga_instance.generations_completed))
     print("Fitness    = {fitness}".format(fitness=ga_instance.best_solution()[1]))
@@ -246,9 +269,13 @@ def callback(ga_instance):
     buzzleApp.population_1D_vector = ga_instance.population
     buzzleApp.vector_to_matrix()
 
+    buzzleApp.update_board_UI()
+    # buzzleApp.gridLayout.export_to_png("gen_"+str(ga_instance.generations_completed)+".png")
+
 from kivy.config import Config
 Config.set('graphics', 'width', '1000')
 Config.set('graphics', 'height', '600')
 
 buzzleApp = BuzzleApp()
+buzzleApp.title = "PyGAD Plays 8 Queen Puzzle"
 buzzleApp.run()
